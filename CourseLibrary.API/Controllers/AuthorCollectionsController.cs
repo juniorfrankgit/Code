@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using CourseLibrary.API.Entities;
+using CourseLibrary.API.Helpers;
 using CourseLibrary.API.Models;
 using CourseLibrary.API.Services;
 using Microsoft.AspNetCore.Http;
@@ -25,7 +26,40 @@ namespace CourseLibrary.API.Controllers
             this.mapper = mapper;
         }
 
-        public ActionResult<IEnumerable<AuthorDto>> CreateAuthorCollection(IEnumerable<AuthorForCreationDto> authorCollection)
+        //public ActionResult<IEnumerable<AuthorDto>> CreateAuthorCollection(IEnumerable<AuthorForCreationDto> authorCollection)
+        //{
+        //    var authorEntities = mapper.Map<IEnumerable<Author>>(authorCollection);
+        //    foreach (var author in authorEntities)
+        //    {
+        //        courseLibraryRepository.AddAuthor(author);
+        //    }
+
+        //    courseLibraryRepository.Save();
+        //    return Ok();
+
+        //}
+
+        [HttpGet("({ids})", Name = "GetAuthorCollection")]
+        public ActionResult GetAuthorCollection(
+            [ModelBinder(BinderType = typeof(ArrayModelBinder))] IEnumerable<Guid> ids)
+        {
+            if (null == ids)
+            {
+                return BadRequest();
+            }
+            var authorEntities = courseLibraryRepository.GetAuthors(ids);
+            if (ids.Count() != authorEntities.Count())
+            {
+                return NotFound();
+            }
+
+            var authorsToReturn = mapper.Map<IEnumerable<AuthorDto>>(authorEntities);
+            return Ok(authorsToReturn);
+        }
+
+        [HttpPost]
+        public ActionResult<IEnumerable<AuthorDto>> CreateAuthorCollection(
+            IEnumerable<AuthorForCreationDto> authorCollection)
         {
             var authorEntities = mapper.Map<IEnumerable<Author>>(authorCollection);
             foreach (var author in authorEntities)
@@ -34,15 +68,14 @@ namespace CourseLibrary.API.Controllers
             }
 
             courseLibraryRepository.Save();
-            return Ok();
 
-        }
-
-        [HttpGet("({ids})")]
-        public ActionResult GetAuthorCollection(
-            [FromRoute]IEnumerable<Guid> ids)
-        {
-
+            var authorCollectionToReturn = mapper.Map<IEnumerable<AuthorDto>>(authorEntities);
+            var idsAsString = string.Join(",", authorCollectionToReturn.Select(a => a.Id));
+            return CreatedAtRoute(
+                "GetAuthorCollection",
+                new { ids = idsAsString},
+                authorCollectionToReturn
+            );
         }
     }
 }
