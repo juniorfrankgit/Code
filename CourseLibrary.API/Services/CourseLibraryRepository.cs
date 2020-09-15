@@ -1,5 +1,6 @@
 ﻿using CourseLibrary.API.DbContexts;
 using CourseLibrary.API.Entities;
+using CourseLibrary.API.Helpers;
 using CourseLibrary.API.ResourceParameters;
 using System;
 using System.Collections.Generic;
@@ -161,27 +162,29 @@ namespace CourseLibrary.API.Services
             }
         }
 
-        public IEnumerable<Author> GetAuthors(AuthorsResourceParameters authorsResourceParameters)
+        // Filtering, searching and paging
+        // It' s a best practice to page all collections for performances
+        public PagedList<Author> GetAuthors(AuthorsResourceParameters authorsResourceParameters)
         {
             if (null == authorsResourceParameters)
             {
                 throw new ArgumentNullException();
             }
-
-            if (string.IsNullOrWhiteSpace(authorsResourceParameters.MainCategory)
-                && string.IsNullOrWhiteSpace(authorsResourceParameters.SearchQuery))
-            {
-                return GetAuthors();
-            }
-
+            // We use IQueryable to use deffered execution
+            // An IQueryable contains the query execution tree (not the data) to send to the datastore
+            // This alloww us to build a precise query before sending it to the datastore (Optimized)
+            // Paging must be done on the collection before sending the query to the datastore 
+            // We must always add paging last (after filtering and searching) but before calling ToList() or ToArray(), 
+            //ToDictionary(), or foreach
             var collection = _context.Authors as IQueryable<Author>;
 
+            // Filtering
             if (!string.IsNullOrWhiteSpace(authorsResourceParameters.MainCategory))
             {
                 var mainCategory = authorsResourceParameters.MainCategory.Trim();
                 collection = collection.Where(a => a.MainCategory == mainCategory);
             }
-
+            //Searching
             if (!string.IsNullOrWhiteSpace(authorsResourceParameters.SearchQuery))
             {
                 var searchQuery = authorsResourceParameters.SearchQuery.Trim();
@@ -189,7 +192,10 @@ namespace CourseLibrary.API.Services
                 || a.FirstName.Contains(searchQuery)
                 || a.LastName.Contains(searchQuery));
             }
-            return collection.ToList();
+            // Paging
+            return PagedList<Author>.Create(collection,
+                authorsResourceParameters.pageNumber,
+                authorsResourceParameters.PageSize);
         }
     }
 }
